@@ -1,4 +1,7 @@
 import sys
+import math
+import tempfile
+import os
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -42,3 +45,42 @@ def test_coordinator():
 def test_cli():
     assert main(["audit", "--task-id", "CLI-01"]) == 0
     assert main(["chat", "What", "is", "the", "system", "status?"]) == 0
+
+
+def test_frontier_payload_rejects_nan():
+    """NaN metric values must be rejected."""
+    with pytest.raises(ValueError):
+        FrontierPayload("T1", "KEY-01", primary_metric=float("nan"), secondary_metric=4.0, status_descriptor="NOMINAL")
+
+
+def test_frontier_payload_rejects_inf():
+    """Infinite metric values must be rejected."""
+    with pytest.raises(ValueError):
+        FrontierPayload("T1", "KEY-01", primary_metric=10.0, secondary_metric=float("inf"), status_descriptor="NOMINAL")
+
+
+def test_frontier_payload_rejects_empty_strings():
+    """Empty task_id must be rejected."""
+    with pytest.raises(ValueError):
+        FrontierPayload("", "KEY-01", primary_metric=10.0, secondary_metric=4.0, status_descriptor="NOMINAL")
+
+
+def test_frontier_batch_csv_error_handling():
+    """Batch processing should skip invalid rows gracefully."""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False, newline="") as f:
+        f.write("task_id,target_identifier,primary_metric,secondary_metric\n")
+        f.write("T1,KEY-01,10.0,5.0\n")
+        f.write("T2,KEY-02,BAD_DATA,5.0\n")  # Bad primary_metric
+        f.write("T3,KEY-03,15.0,8.0\n")
+        tmp_path = f.name
+
+    try:
+        output_path = tmp_path + "_out.csv"
+        result = main(["batch", "-i", tmp_path, "-o", output_path])
+        assert result == 0
+        with open(output_path, "r") as f:
+            lines = f.readlines()
+        assert len(lines) == 3  # header + 2 valid rows
+        os.unlink(output_path)
+    finally:
+        os.unlink(tmp_path)

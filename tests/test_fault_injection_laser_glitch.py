@@ -4,6 +4,9 @@ Domain: Post-Quantum Cryptography & Hardware Security
 Standard: NIST FIPS 203/204/205 / ISO/IEC 17825 Standards
 """
 import sys
+import math
+import tempfile
+import os
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -63,3 +66,52 @@ def test_supervisor_consensus_and_audit():
     assert main(["audit", "--task-id", "CLI-TEST-01"]) == 0
     assert main(["chat", "Explain", "specifications"]) == 0
     assert main(["verify-audit"]) == 0
+
+
+def test_input_validation_rejects_nan():
+    """NaN metric values must be rejected."""
+    with pytest.raises(Exception):
+        SystemTaskPayload(task_id="T1", target_identifier="KEY-01", primary_metric=float("nan"))
+
+
+def test_input_validation_rejects_inf():
+    """Infinite metric values must be rejected."""
+    with pytest.raises(Exception):
+        SystemTaskPayload(task_id="T1", target_identifier="KEY-01", primary_metric=float("inf"))
+
+
+def test_input_validation_rejects_empty_strings():
+    """Empty or whitespace-only strings must be rejected."""
+    with pytest.raises(Exception):
+        SystemTaskPayload(task_id="", target_identifier="KEY-01", primary_metric=10.0)
+    with pytest.raises(Exception):
+        SystemTaskPayload(task_id="T1", target_identifier="   ", primary_metric=10.0)
+
+
+def test_batch_csv_error_handling():
+    """Batch processing should skip invalid rows gracefully."""
+    # Create a temp CSV with one bad row
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False, newline="") as f:
+        f.write("task_id,target_identifier,primary_metric,secondary_metric\n")
+        f.write("T1,KEY-01,10.0,5.0\n")
+        f.write("T2,KEY-02,INVALID,5.0\n")  # Bad primary_metric
+        f.write("T3,KEY-03,15.0,8.0\n")
+        tmp_path = f.name
+
+    try:
+        output_path = tmp_path + "_out.csv"
+        result = main(["batch", "-i", tmp_path, "-o", output_path])
+        assert result == 0
+        # Verify output has 2 valid rows (header + 2 data rows)
+        with open(output_path, "r") as f:
+            lines = f.readlines()
+        assert len(lines) == 3  # header + 2 valid rows
+        os.unlink(output_path)
+    finally:
+        os.unlink(tmp_path)
+
+
+def test_batch_csv_file_not_found():
+    """Batch processing should handle missing input file gracefully."""
+    result = main(["batch", "-i", "nonexistent_file.csv"])
+    assert result == 1

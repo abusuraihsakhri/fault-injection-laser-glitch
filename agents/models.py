@@ -4,9 +4,10 @@ Domain: Post-Quantum Cryptography & Hardware Security
 Standard: NIST FIPS 203/204/205 / ISO/IEC 17825 Standards
 """
 import datetime
+import math
 from enum import Enum
 from typing import Dict, Any, List, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class UrgencyLevel(str, Enum):
@@ -21,6 +22,13 @@ class SystemIntegrityStatus(str, Enum):
     RECALIBRATION_REQUIRED = "RECALIBRATION_REQUIRED"
 
 
+def _validate_finite(value: float, field_name: str) -> float:
+    """Reject NaN and Inf values for numeric metrics."""
+    if math.isnan(value) or math.isinf(value):
+        raise ValueError(f"{field_name} must be a finite number, got {value}")
+    return value
+
+
 class SystemTaskPayload(BaseModel):
     task_id: str = Field(..., description="Unique task / case identifier")
     target_identifier: str = Field(..., description="Entity, patient key, or genomic/cryptographic target")
@@ -30,6 +38,18 @@ class SystemTaskPayload(BaseModel):
     is_critical_flag: bool = Field(default=False, description="Emergency escalation or high priority trigger")
     attributes: Dict[str, Any] = Field(default_factory=dict, description="Metadata key-value pairs")
     timestamp: str = Field(default_factory=lambda: datetime.datetime.now(datetime.timezone.utc).isoformat())
+
+    @field_validator("primary_metric", "secondary_metric")
+    @classmethod
+    def metrics_must_be_finite(cls, v: float) -> float:
+        return _validate_finite(v, "metric")
+
+    @field_validator("task_id", "target_identifier", "status_descriptor")
+    @classmethod
+    def strings_must_not_be_empty(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("Field cannot be empty or whitespace")
+        return v.strip()
 
 
 class AgentAlert(BaseModel):
