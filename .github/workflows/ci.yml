@@ -1,40 +1,48 @@
-name: Fault Injection Laser Glitch CI/CD & Security Verification
+name: Test and verify
 
 on:
   push:
-    branches: [ master, main ]
+    branches: [master, main]
   pull_request:
-    branches: [ master, main ]
+    branches: [master, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   test-and-audit:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
-        python-version: ["3.10", "3.11", "3.12"]
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
 
     steps:
-    - uses: actions/checkout@v4
-
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
-      with:
-        python-version: ${{ matrix.python-version }}
-
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install fastapi uvicorn pydantic pytest
-
-    - name: Run Pytest Suite
-      run: |
-        pytest -v
-
-    - name: Security SAST & Zero-PHI Audit
-      run: |
-        python -c "
-        from agents.base import PHIGuard, AuditLogger
-        import pytest
-        assert AuditLogger.verify_integrity() is True
-        print('Security & Zero-PHI Audit Passed!')
-        "
+      - uses: actions/checkout@v4
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install project and test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[server,test]"
+      - name: Python dependency integrity
+        run: python -m pip check
+      - name: Compile Python source
+        run: python -m compileall -q agents fault_injection tests cli.py simulator.py enrichment.py
+      - name: Run Python tests
+        run: python -m pytest -q
+      - name: Run static browser tests
+        run: node --test tests/web.test.mjs
+      - name: Audit verifier smoke test
+        run: |
+          python - <<'PY'
+          from agents.base import AuditLogger
+          assert AuditLogger.verify_integrity()
+          print("Audit verifier: OK")
+          PY
