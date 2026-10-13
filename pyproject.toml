@@ -17,7 +17,11 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 requires-python = ">=3.9"
-dependencies = []
+dependencies = ["pydantic>=2,<3"]
+
+[project.optional-dependencies]
+server = ["fastapi>=0.110,<1", "uvicorn>=0.29,<1"]
+test = ["pytest>=8,<10", "httpx>=0.27,<1"]
 
 [project.scripts]
 fault-injection-laser-glitch = "fault_injection.cli:main"
@@ -25,3 +29,6 @@ fault-injection-laser-glitch = "fault_injection.cli:main"
 [project.urls]
 Homepage = "https://github.com/abusuraihsakhri/fault-injection-laser-glitch"
 Repository = "https://github.com/abusuraihsakhri/fault-injection-laser-glitch.git"
+
+[tool.setuptools.packages.find]
+include = ["agents*", "fault_injection*"]
