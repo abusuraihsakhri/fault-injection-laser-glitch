@@ -1,5 +1,7 @@
 # Fault Injection Laser Glitch
 
+### [Open the Live Application →](https://abusuraihsakhri.github.io/fault-injection-laser-glitch/)
+
 A research-oriented, rule-based screening project for illustrative fault-injection risk scenarios. The repository provides Python command-line and API workflows plus a standalone browser preview. **It does not drive laser hardware, implement AES key recovery, measure device resistance, or certify compliance with any standard.**
 
 ## Browser preview

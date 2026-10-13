@@ -31,3 +31,12 @@ jobs:
           path: ./web
       - id: deployment
         uses: actions/deploy-pages@v4
+      - name: Verify published HTML and module
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 12 --retry-delay 5 --retry-all-errors "${PAGE_URL}" -o /tmp/pages-index.html
+          grep -Fq 'Threshold Screening' /tmp/pages-index.html
+          curl --fail --location --retry 12 --retry-delay 5 --retry-all-errors "${PAGE_URL}audit.mjs" -o /tmp/audit.mjs
+          grep -Fq 'export function evaluateAudit' /tmp/audit.mjs
