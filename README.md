@@ -1,230 +1,75 @@
 # Fault Injection Laser Glitch
 
-> **Domain:** Post-Quantum Cryptography & Hardware Security
-> **Standards:** NIST FIPS 203/204/205, NIST SP 800-90B, ISO/IEC 17825, ISO/IEC 20085
+A research-oriented, rule-based screening project for illustrative fault-injection risk scenarios. The repository provides Python command-line and API workflows plus a standalone browser preview. **It does not drive laser hardware, implement AES key recovery, measure device resistance, or certify compliance with any standard.**
 
-<div align="center">
+## Browser preview
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-![Python](https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12-3776AB.svg?logo=python&logoColor=white)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.111-009688.svg?logo=fastapi&logoColor=white)
-![Audit Trail](https://img.shields.io/badge/Audit-HMAC--SHA256_Tamper--Evident-brightgreen.svg)
-![Zero-PHI Guard](https://img.shields.io/badge/Guard-Zero--PHI_Outbound-blue.svg)
-![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg?logo=docker&logoColor=white)
-
-</div>
-
----
-
-## Overview
-
-Fault Injection Laser Glitch is a multi-agent analytical engine for evaluating fault injection attack resistance in cryptographic and hardware security systems. It processes task payloads through specialized workers that check invariant thresholds, safety boundaries, and protocol conformance, producing cryptographically signed audit trails.
-
-The project provides two parallel agent systems:
-
-- **`agents/`** — Enterprise-grade system with Pydantic models, FastAPI REST API, and HMAC-SHA256 audit trail
-- **`fault_injection/`** — Frontier system with dataclass models and ISO/IEC 20085 fault injection testing
-
----
-
-## Key Capabilities
-
-- **Multi-Worker Evaluation**: Three specialized workers (InvariantQC, SafetyEscalation, ProtocolConformance) analyze each task
-- **Risk Classification**: Multi-tier urgency classification (ROUTINE, ELEVATED_RISK, CRITICAL_STAT_PANIC)
-- **Zero-PHI Outbound Guard**: Active pattern detection blocking SSNs, MRNs, phone numbers, and patient identifiers
-- **Tamper-Evident Audit Trail**: Chained HMAC-SHA256 cryptographic signatures for every evaluation
-- **FastAPI REST API**: OpenAPI 3.1 endpoints with Prometheus telemetry
-- **Batch Processing**: CSV-based high-throughput evaluation mode
-
----
-
-## Installation
+The static page in `web/` implements a local preview of the three threshold rules used in `agents/workers.py`. It requires no API, credentials, or Python runtime. Start a local web server:
 
 ```bash
-# Clone the repository
+python -m http.server 8080 --directory web
+```
+
+Open `http://localhost:8080/`. Enter nonsensitive task and target codes, choose metrics and an optional critical flag, then select **Evaluate**. Results can be exported as an unsigned JSON file.
+
+The page processes inputs in memory, does not send network requests or retain entered data, and does not generate HMAC audit records. Do not enter personal identifiers or confidential measurements. The metric cutoffs (primary >25; secondary >12) are **illustrative defaults**, not validated hardware-security limits.
+
+## Python systems
+
+This repository retains two distinct implementations:
+
+- `agents/` + root `cli.py`: Pydantic v2 models; three rule-based workers; FastAPI endpoints; in-memory HMAC-SHA256 audit chain.
+- `fault_injection/` + `fault_injection_app.py`: dataclass models and an independent three-worker threshold evaluator. The installed `fault-injection-laser-glitch` console command invokes this version.
+- `enrichment.py`: generic numeric threshold demonstrations with domain-oriented labels. These are **not** implementations of physical laser or fault-injection campaigns.
+
+The enterprise worker rules flag a primary metric above 25, a secondary metric above 12, a true critical flag, and status descriptors containing predefined anomaly keywords. They report urgency and alerts; no physical testing occurs.
+
+## Installation and use
+
+Requires Python 3.9 or newer.
+
+```bash
 git clone https://github.com/abusuraihsakhri/fault-injection-laser-glitch.git
 cd fault-injection-laser-glitch
+python -m pip install -e ".[server,test]"
 
-# Install dependencies
-pip install fastapi uvicorn pydantic pytest
-```
-
----
-
-## Usage
-
-### CLI Commands
-
-The CLI provides several subcommands for different operations:
-
-#### 1. Single Task Evaluation (Audit)
-```bash
-python cli.py audit --task-id TASK-001 --target KEY-01 --primary 28.5 --secondary 14.2 --critical --status DISCORDANT
-```
-
-#### 2. Supervisory Chat
-```bash
-python cli.py chat "What is the system status?"
-```
-
-#### 3. Batch CSV Processing
-```bash
+# Enterprise CLI
+python cli.py audit --task-id TASK-001 --target DEVICE-001 --primary 29.4 --secondary 14.8 --status ANOMALY
 python cli.py batch -i sample.csv -o results.csv
-```
-
-#### 4. Verify Audit Trail Integrity
-```bash
 python cli.py verify-audit
+python simulator.py 100
+
+# Independent frontier CLI
+python fault_injection_app.py audit --task-id TASK-002 --target DEVICE-002 --primary 20 --secondary 5
+
+# Local API (not intended for public internet exposure)
+python -m uvicorn agents.api:app --host 127.0.0.1 --port 8000
 ```
 
-#### 5. Launch REST API Server
-```bash
-python cli.py serve --host 127.0.0.1 --port 8000
-```
+API endpoints: `GET /health`, `GET /metrics` (JSON process counters), `POST /api/audit`, `POST /api/chat` (deterministic mock), and `GET /api/audit/logs`. Interactive OpenAPI documentation is available at `/docs` when the API is running. The repository's `openapi_spec.json` is illustrative; the running FastAPI schema is authoritative.
 
-### Parameters
+An optional in-memory key for the audit chain can be supplied through `AUDIT_SECRET_KEY`. Otherwise a random ephemeral key is generated. The ledger is process-local and **is not persisted** across restarts. Its verification checks both record links and HMACs; it is not an external notarization service. The API has no user authentication and must remain on a trusted local network.
 
-| Parameter | Type | Default | Description |
-|:----------|:-----|:--------|:------------|
-| `--task-id` | str | TASK-2026-001 | Unique task identifier |
-| `--target` | str | KEY-TARGET-01 | Target entity or cryptographic key identifier |
-| `--primary` | float | 28.5 | Primary measurement or score value |
-| `--secondary` | float | 14.2 | Secondary kinetic or confidence score |
-| `--critical` | flag | False | Trigger emergency/critical escalation |
-| `--status` | str | DISCORDANT | Status code or phenotype descriptor |
+A container can be started with `docker compose up --build`; Compose binds port 8000 to localhost only. Set `AUDIT_SECRET_KEY` to a secret outside version control when stable signing keys are required.
 
-### Input Data Schema (CSV)
-
-| Field | Type | Required | Description |
-|:------|:-----|:---------|:------------|
-| `task_id` | str | Yes | Unique task identifier |
-| `target_identifier` | str | Yes | Target entity or key identifier |
-| `primary_metric` | float | Yes | Primary measurement value |
-| `secondary_metric` | float | No | Secondary metric (default: 0.0) |
-| `is_critical_flag` | bool | No | Critical escalation flag (default: false) |
-| `status_descriptor` | str | No | Status code (default: NOMINAL) |
-
----
-
-## REST API Endpoints
-
-When the server is running (`python cli.py serve`):
-
-| Method | Endpoint | Description |
-|:-------|:---------|:------------|
-| GET | `/health` | Health check and system metadata |
-| GET | `/metrics` | Operational metrics (dossier count, audit blocks) |
-| POST | `/api/audit` | Submit task payload for evaluation |
-| POST | `/api/chat` | Supervisory chat query |
-| GET | `/api/audit/logs` | Retrieve and verify HMAC audit trail |
-
----
-
-## Simulation & Benchmarking
-
-Run the high-throughput simulation:
+## Test and development
 
 ```bash
-python simulator.py 1000
+python -m pip install -e ".[server,test]"
+python -m pytest -q
+python -m compileall -q agents fault_injection tests cli.py simulator.py enrichment.py
+node --test tests/web.test.mjs
 ```
 
-This processes 1,000 randomized task payloads and reports distribution statistics, PHI interception rate, and audit trail integrity.
+Python tests cover the rule engines, CLI, batch input handling, identifier checks, and audit-integrity regressions. Node.js 20+ is used for browser-rule unit tests; the web preview itself works in current Chromium, Firefox, and Safari versions supporting ES modules. GitHub Actions runs the Python test matrix and Node suite.
 
----
+## Privacy and security limitations
 
-## Testing
+- The static preview works entirely client-side, with no upload or analytics service.
+- The Python services keep dossiers and audit entries in process memory. The identifier guard uses patterns and **cannot guarantee complete personal-data detection or de-identification**.
+- Both APIs are unauthenticated by default; do not expose them publicly or submit sensitive information.
+- API responses and heuristic statuses are not security certifications or formal standards-conformance decisions.
 
-Run the full test suite:
+## Technology and license
 
-```bash
-pytest -v
-```
-
-Tests cover:
-- PHI guard enforcement (Zero-PHI outbound protection)
-- Specialized worker evaluation logic
-- Supervisor consensus and audit trail integrity
-- CLI command execution
-- Sub-agent coordination
-- CSV batch processing error handling
-- Input validation (NaN, Inf, empty strings)
-
----
-
-## Security
-
-### Audit Trail Secret Key
-
-The HMAC-SHA256 audit trail requires a secret key. Set the `AUDIT_SECRET_KEY` environment variable for production:
-
-```bash
-export AUDIT_SECRET_KEY="your-secure-random-key"
-```
-
-If not set, an ephemeral key is generated at startup (signatures will not persist across restarts).
-
-### Zero-PHI Guard
-
-The system actively blocks outbound transmission of:
-- Medical Record Numbers (MRN)
-- Social Security Numbers (XXX-XX-XXXX)
-- Phone numbers
-- Email addresses
-- Dates of birth
-- Patient names
-
----
-
-## Container Deployment
-
-### Docker
-
-```bash
-docker build -t fault-injection-laser-glitch .
-docker run -p 8000:8000 -e AUDIT_SECRET_KEY=your-secret-key fault-injection-laser-glitch
-```
-
-### Docker Compose
-
-```bash
-AUDIT_SECRET_KEY=your-secret-key docker compose up
-```
-
----
-
-## Project Structure
-
-```
-fault-injection-laser-glitch/
-├── agents/                  # Enterprise agent system
-│   ├── api.py              # FastAPI REST server
-│   ├── base.py             # Security, PHI guard, audit trail
-│   ├── models.py           # Pydantic data models
-│   ├── supervisor.py       # Multi-agent orchestrator
-│   ├── workers.py          # Specialized evaluation workers
-│   └── llm_factory.py      # LLM provider abstraction
-├── fault_injection/         # Frontier agent system
-│   ├── agents.py           # Sub-agent coordination
-│   ├── engine.py           # Core evaluation engine
-│   ├── models.py           # Dataclass models
-│   ├── cli.py              # CLI for frontier system
-│   └── server.py           # FastAPI server factory
-├── tests/                   # Pytest test suite
-├── web/                     # Operations console (HTML)
-├── cli.py                   # Main CLI entry point
-├── fault_injection_app.py   # Frontier CLI entry point
-├── simulator.py             # High-throughput simulation
-├── enrichment.py            # Domain enrichment engines
-├── sample.csv               # Sample batch input
-├── sample_payload.json      # Sample API payload
-├── benchmark_dataset.json   # Golden benchmark test cases
-├── Dockerfile               # Container build
-├── docker-compose.yml       # Container orchestration
-└── pyproject.toml           # Project metadata
-```
-
----
-
-## License
-
-MIT License — see [LICENSE](LICENSE) for details.
+Python, Pydantic v2, FastAPI (optional server), pytest, standard HTML/CSS/JavaScript, Docker, and GitHub Actions. Licensed under the MIT License; see [LICENSE](LICENSE).
